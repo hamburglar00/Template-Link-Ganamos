@@ -68,6 +68,38 @@
   <!-- ✅ Cartel / Toast -->
   <div id="gnToast" class="gn-toast" role="status" aria-live="polite"></div>
 
+  <!-- ✅ Popup (solo HTML + clases; el CSS lo movemos luego a styles.css) -->
+  <div id="gnPhoneModal" class="gn-modal" aria-hidden="true">
+    <div class="gn-modal-backdrop" data-close-modal></div>
+
+    <div class="gn-modal-card" role="dialog" aria-modal="true" aria-labelledby="gnModalTitle">
+      <div class="gn-modal-head">
+        <div>
+          <div id="gnModalTitle" class="gn-modal-title">Número oficial</div>
+          <div class="gn-modal-sub">Tocá el ícono para copiar</div>
+        </div>
+
+        <button class="gn-modal-x" data-close-modal aria-label="Cerrar">✕</button>
+      </div>
+
+      <div class="gn-modal-body">
+        <div class="gn-phone-row">
+          <span id="gnPhoneText" class="gn-phone-text">—</span>
+
+          <button id="gnCopyBtn" class="gn-copy-btn" type="button" aria-label="Copiar número">
+            📋
+          </button>
+        </div>
+
+        <div class="gn-modal-actions">
+          <button class="gn-btn gn-btn-outline" type="button" data-close-modal>
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     /********************************************
      * CONFIGURACIÓN (EDITAR SOLO ESTO)
@@ -92,6 +124,61 @@
         el.classList.remove("is-open");
       }, ms);
     }
+
+    /********************************************
+     * ✅ Util: quitar "549" SOLO para mostrar
+     ********************************************/
+    function strip549ForDisplay(phoneRaw) {
+      const digits = String(phoneRaw || "").replace(/\D/g, "");
+      if (digits.startsWith("549")) return digits.slice(3);
+      return digits;
+    }
+
+    /********************************************
+     * ✅ Modal helpers
+     ********************************************/
+    function openPhoneModal(displayNumber) {
+      const modal = document.getElementById("gnPhoneModal");
+      const phoneText = document.getElementById("gnPhoneText");
+      const copyBtn = document.getElementById("gnCopyBtn");
+
+      if (!modal || !phoneText || !copyBtn) return;
+
+      phoneText.textContent = displayNumber || "—";
+
+      copyBtn.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(displayNumber || "");
+          showToast(`<strong>Copiado</strong><br>Copiado ✔️`);
+        } catch (e) {
+          showToast(`<strong>Error</strong><br>No se pudo copiar.`);
+        }
+      };
+
+      modal.classList.add("is-open");
+      modal.setAttribute("aria-hidden", "false");
+    }
+
+    function closePhoneModal() {
+      const modal = document.getElementById("gnPhoneModal");
+      if (!modal) return;
+      modal.classList.remove("is-open");
+      modal.setAttribute("aria-hidden", "true");
+    }
+
+    // Cerrar modal por backdrop / botones
+    document.addEventListener("click", (e) => {
+      const t = e.target;
+      if (t && t.hasAttribute && t.hasAttribute("data-close-modal")) {
+        e.preventDefault();
+        closePhoneModal();
+      }
+    });
+
+    // Cerrar con ESC
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closePhoneModal();
+    });
 
     /********************************************
      * DISEÑOS
@@ -205,7 +292,7 @@
     wireTelegramButton();
 
     /********************************************
-     * LÓGICA WHATSAPP ACTUAL (SIN CAMBIOS)
+     * ✅ LÓGICA WHATSAPP: ahora abre POPUP + copiar
      ********************************************/
     if (design === "whatsapp") {
       const SERVICE_URL = "/api/get-random-phone";
@@ -267,21 +354,21 @@
         return list[list.length - 1];
       }
 
-      function buildWaUrl(phone, text = "") {
-        const msg = text ? encodeURIComponent(text) : "";
-        const cleanPhone = phone.replace(/\D/g, "");
-        return `https://api.whatsapp.com/send?phone=${cleanPhone}${msg ? `&text=${msg}` : ""}`;
-      }
-
       let activeList = [];
       loadNumbersOnce().then(list => { activeList = list; });
 
       document.getElementById("btnContactar").addEventListener("click", (e) => {
         e.preventDefault();
-        if (!activeList.length) return;
+
+        if (!activeList.length) {
+          showToast(`<strong>Un momento</strong><br>Estamos cargando el contacto...`);
+          return;
+        }
+
         const chosen = pickWeightedRandom(activeList);
-        const mensaje = "¡Hola! Me pasás mi usuario 🚀";
-        location.href = buildWaUrl(chosen.phone, mensaje);
+        const displayNumber = strip549ForDisplay(chosen.phone);
+
+        openPhoneModal(displayNumber);
       });
     }
   </script>
